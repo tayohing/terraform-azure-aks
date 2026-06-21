@@ -1,0 +1,32 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - http:
+        paths:
+          - path: /quotes
+            pathType: Prefix
+            backend:
+              service:
+                name: quote-api
+                port:
+                  number: 80
+          - path: /health
+            pathType: Prefix
+            backend:
+              service:
+                name: health-api
+                port:
+                  number: 80
+          - path: /request
+            pathType: Prefix
+            backend:
+              service:
+                name: request-api
+                port:
+                  number: 80

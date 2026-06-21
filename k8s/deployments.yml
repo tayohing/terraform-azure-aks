@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: quote-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: quote-api
+  template:
+    metadata:
+      labels:
+        app: quote-api
+    spec:
+      containers:
+        - name: quote-api
+          image: <ACR_LOGIN_SERVER>/quote-api:latest
+          ports:
+            - containerPort: 5000
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: health-api
+  template:
+    metadata:
+      labels:
+        app: health-api
+    spec:
+      containers:
+        - name: health-api
+          image: <ACR_LOGIN_SERVER>/health-api:latest
+          ports:
+            - containerPort: 5000
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: request-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: request-api
+  template:
+    metadata:
+      labels:
+        app: request-api
+    spec:
+      containers:
+        - name: request-api
+          image: <ACR_LOGIN_SERVER>/request-api:latest
+          ports:
+            - containerPort: 5000
