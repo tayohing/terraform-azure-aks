@@ -1,0 +1,86 @@
+name: Deploy to AKS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  ACR_NAME: acraksth
+  RESOURCE_GROUP: rg-aks-project
+  AKS_CLUSTER: aks-cluster-th
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: '{"clientId":"${{ secrets.AZURE_CLIENT_ID }}","clientSecret":"${{ secrets.AZURE_CLIENT_SECRET }}","subscriptionId":"${{ secrets.AZURE_SUBSCRIPTION_ID }}","tenantId":"${{ secrets.AZURE_TENANT_ID }}"}'
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform init
+        working-directory: terraform
+        run: terraform init
+
+      - name: Infracost cost estimate
+        uses: infracost/actions/setup@v3
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Set currency
+        run: infracost configure set currency GBP
+
+      - name: Run Infracost
+        working-directory: terraform
+        run: infracost breakdown --path . --format table --show-skipped
+
+      - name: Terraform apply
+        working-directory: terraform
+        run: terraform apply -auto-approve
+        env:
+          ARM_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          ARM_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          ARM_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ARM_SUBSCRIPTION_ID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Build and push quote-api
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/quote-api:latest apps/quote-api
+          docker push ${{ env.ACR_NAME }}.azurecr.io/quote-api:latest
+
+      - name: Build and push health-api
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/health-api:latest apps/health-api
+          docker push ${{ env.ACR_NAME }}.azurecr.io/health-api:latest
+
+      - name: Build and push request-api
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+          docker build -t ${{ env.ACR_NAME }}.azurecr.io/request-api:latest apps/request-api
+          docker push ${{ env.ACR_NAME }}.azurecr.io/request-api:latest
+
+      - name: Get AKS credentials
+        run: az aks get-credentials --resource-group ${{ env.RESOURCE_GROUP }} --name ${{ env.AKS_CLUSTER }}
+
+      - name: Install NGINX Ingress Controller
+        run: |
+          kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.1/deploy/static/provider/cloud/deploy.yaml
+          kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s
+
+      - name: Deploy to AKS
+        run: |
+          sed -i "s|<ACR_LOGIN_SERVER>|${{ env.ACR_NAME }}.azurecr.io|g" k8s/deployments.yml
+          kubectl apply -f k8s/deployments.yml
+          kubectl apply -f k8s/services.yml
+          kubectl apply -f k8s/ingress.yml
