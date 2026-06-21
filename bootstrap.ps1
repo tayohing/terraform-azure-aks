@@ -2,7 +2,7 @@
 $location = "uksouth"
 $subscriptionId = "23e7547b-442a-4d96-b13f-f400f2e72b04"
 $resourceGroupName = "rg-tfstate-aks"
-$storageAccountName = "sttfstateaks"
+$storageAccountName = "sttfstateaksth"
 $containerName = "tfstate"
 
 # --- Login check ---
